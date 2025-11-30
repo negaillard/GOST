@@ -1,4 +1,4 @@
-﻿namespace GOST
+﻿namespace Md4
 {
 	public partial class MainForm : Form
 	{
@@ -7,36 +7,33 @@
 			InitializeComponent();
 		}
 
-		private void MainForm_Load(object sender, EventArgs e)
-		{
-			comboBoxVersion.SelectedIndex = 0; // Выбираем 256 по умолчанию
-		}
-
 		private void btnSelectFile_Click(object sender, EventArgs e)
 		{
-			using (OpenFileDialog openFileDialog = new OpenFileDialog())
+			using (var dlg = new OpenFileDialog())
 			{
-				openFileDialog.Title = "Выберите файл для хеширования";
-				openFileDialog.Filter = "Все файлы (*.*)|*.*";
-				openFileDialog.Multiselect = false;
+				dlg.Title = "Выберите файл для хеширования";
+				dlg.Filter = "Все файлы (*.*)|*.*";
+				dlg.Multiselect = false;
 
-				if (openFileDialog.ShowDialog() == DialogResult.OK)
+				if (dlg.ShowDialog() == DialogResult.OK)
 				{
-					txtFilePath.Text = openFileDialog.FileName;
+					txtPath.Text = dlg.FileName;
 				}
 			}
 		}
 
-		private void btnCalculateHash_Click(object sender, EventArgs e)
+		private void btnComputeHash_Click(object sender, EventArgs e)
 		{
-			if (string.IsNullOrEmpty(txtFilePath.Text))
+			var path = txtPath.Text;
+
+			if (string.IsNullOrWhiteSpace(path))
 			{
 				MessageBox.Show("Пожалуйста, выберите файл.", "Ошибка",
 					MessageBoxButtons.OK, MessageBoxIcon.Warning);
 				return;
 			}
 
-			if (!File.Exists(txtFilePath.Text))
+			if (!File.Exists(path))
 			{
 				MessageBox.Show("Выбранный файл не существует.", "Ошибка",
 					MessageBoxButtons.OK, MessageBoxIcon.Error);
@@ -46,72 +43,39 @@
 			try
 			{
 				Cursor = Cursors.WaitCursor;
-				btnCalculateHash.Enabled = false;
+				btnComputeHash.Enabled = false;
 
-				bool version = comboBoxVersion.SelectedIndex == 0 ? false : true;
+				byte[] bytes = File.ReadAllBytes(path);
+				byte[] hashBytes = Md4.ComputeHash(bytes);
 
-				byte[] fileBytes = File.ReadAllBytes(txtFilePath.Text);
+				string hash = BitConverter.ToString(hashBytes)
+					.Replace("-", "")
+					.ToLowerInvariant();
 
-				GhostHash ghost = new GhostHash();
-				byte[] hash = ghost.GetHash(fileBytes, version);
-
-				string hashString = BitConverter.ToString(hash).Replace("-", "").ToLower();
-
-				txtHashResult.Text = hashString;
-
-				ShowFileInfo(fileBytes.Length);
+				txtHash.Text = hash;
 			}
 			catch (Exception ex)
 			{
-				MessageBox.Show($"Ошибка при вычислении хеша: {ex.Message}", "Ошибка",
-					MessageBoxButtons.OK, MessageBoxIcon.Error);
+				MessageBox.Show($"Ошибка при вычислении хеша: {ex.Message}",
+					"Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
 			}
 			finally
 			{
 				Cursor = Cursors.Default;
-				btnCalculateHash.Enabled = true;
-			}
-		}
-
-		private void ShowFileInfo(long fileSize)
-		{
-			lblFileInfo.Text = $"Размер файла: {fileSize} байт ({FormatFileSize(fileSize)})";
-		}
-
-		private string FormatFileSize(long bytes)
-		{
-			string[] sizes = { "B", "KB", "MB", "GB" };
-			int order = 0;
-			double len = bytes;
-			while (len >= 1024 && order < sizes.Length - 1)
-			{
-				order++;
-				len = len / 1024;
-			}
-			return $"{len:0.##} {sizes[order]}";
-		}
-
-		private void btnCopyHash_Click(object sender, EventArgs e)
-		{
-			if (!string.IsNullOrEmpty(txtHashResult.Text))
-			{
-				Clipboard.SetText(txtHashResult.Text);
-				MessageBox.Show("Хеш скопирован в буфер обмена.", "Успех",
-					MessageBoxButtons.OK, MessageBoxIcon.Information);
+				btnComputeHash.Enabled = true;
 			}
 		}
 
 		private void btnClear_Click(object sender, EventArgs e)
 		{
-			txtHashResult.Clear();
-			lblFileInfo.Text = "Размер файла: -";
+			txtHash.Clear();
 		}
 
-		private void button1_Click(object sender, EventArgs e)
+		private void btnInfo_Click(object sender, EventArgs e)
 		{
-			var readmeForm = new ReadmeForm();
-			readmeForm.FormClosed += (s, ea) => this.Show();
-			readmeForm.Show();
+			var info = new InfoForm();
+			info.FormClosed += (_, __) => this.Show();
+			info.Show();
 			this.Hide();
 		}
 
@@ -119,27 +83,28 @@
 		{
 			File.WriteAllText(filePath, hashString);
 		}
-		private void button2_Click(object sender, EventArgs e)
+
+		private void btnSaveToFile_Click(object sender, EventArgs e)
 		{
-			if (string.IsNullOrEmpty(txtHashResult.Text))
+			if (string.IsNullOrWhiteSpace(txtHash.Text))
 			{
-				MessageBox.Show("Нет хеша для сохранения.", "Информация",
+				MessageBox.Show("Нет хеша", "Информация",
 					MessageBoxButtons.OK, MessageBoxIcon.Information);
 				return;
 			}
 
-			using (SaveFileDialog saveFileDialog = new SaveFileDialog())
+			using (var dlg = new SaveFileDialog())
 			{
-				saveFileDialog.Filter = "Text files (*.txt)|*.txt|All files (*.*)|*.*";
-				saveFileDialog.FileName = $"hash_{DateTime.Now:yyyyMMdd_HHmmss}.txt";
+				dlg.Filter = "Text files (*.txt)|*.txt|All files (*.*)|*.*";
+				dlg.FileName = $"hash_{DateTime.Now:yyyyMMdd_HHmmss}.txt";
 
-				if (saveFileDialog.ShowDialog() == DialogResult.OK)
+				if (dlg.ShowDialog() == DialogResult.OK)
 				{
 					try
 					{
-						File.WriteAllText(saveFileDialog.FileName, txtHashResult.Text);
+						File.WriteAllText(dlg.FileName, txtHash.Text);
 
-						MessageBox.Show($"Хеш сохранен в файл:\n{saveFileDialog.FileName}",
+						MessageBox.Show($"Хеш сохранен в файл:\n{dlg.FileName}",
 							"Успех", MessageBoxButtons.OK, MessageBoxIcon.Information);
 					}
 					catch (Exception ex)
@@ -150,7 +115,6 @@
 				}
 			}
 		}
-
-
 	}
 }
+

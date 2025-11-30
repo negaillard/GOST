@@ -1,4 +1,4 @@
-namespace GOST
+namespace Md4
 {
     internal static class Program
     {
